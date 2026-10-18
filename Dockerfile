@@ -1,5 +1,4 @@
-# AgentCore Runtime expects an ARM64 image listening on 0.0.0.0:8000/mcp.
-# Build with: docker buildx build --platform linux/arm64 -t macro-desk .
+# Serves MCP on 0.0.0.0:8000/mcp. scripts/deploy_ecs.sh builds it for ARM64 (Graviton).
 FROM python:3.13-slim
 
 WORKDIR /app
