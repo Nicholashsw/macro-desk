@@ -1,0 +1,28 @@
+{
+  "name": "Macro Desk",
+  "locale": "en-US",
+  "shortDescription": "US inflation, jobs, growth and Treasury yields, with a shock score that says whether the latest number matters.",
+  "fullDescription": "Macro Desk is a macro analyst you can talk to. Ask about inflation, the jobs report, retail sales, GDP, jobless claims, the fed funds rate or Treasury yields and get the latest figure in one or two sentences.\n\nWhat sets it apart is the second sentence. Every release is scored against its own recent history, so instead of just hearing that inflation rose, you hear that the monthly change was nearly two standard deviations above its three-year average, and when a move that large last happened. Ordinary prints stay short; unusual ones are flagged.\n\nYou can also ask for a quick briefing on the whole economy, whether the yield curve is inverted and since when, or which growth and inflation regime the US is in.\n\nData comes from FRED at the Federal Reserve Bank of St. Louis and refreshes automatically as new releases come out.",
+  "examplePhrases": [
+    "Brief me on the economy",
+    "How big a surprise was the latest CPI print?",
+    "Is the yield curve inverted?",
+    "How did the jobs report look?"
+  ],
+  "privacyAndCompliance": {
+    "privacyPolicyUrl": "https://{HOST}/privacy",
+    "termsOfUseUrl": "https://{HOST}/terms"
+  },
+  "mediaAssets": {
+    "icons": {
+      "72x72": "https://{HOST}/assets/icon-72.png",
+      "64x64": "https://{HOST}/assets/icon-64.png",
+      "88x88": "https://{HOST}/assets/icon-88.png",
+      "126x126": "https://{HOST}/assets/icon-126.png",
+      "180x180": "https://{HOST}/assets/icon-180.png",
+      "241x241": "https://{HOST}/assets/icon-241.png"
+    },
+    "carousel": ["https://{HOST}/assets/carousel-600x900.png"]
+  },
+  "mcpServerUrl": "https://{HOST}/mcp"
+}

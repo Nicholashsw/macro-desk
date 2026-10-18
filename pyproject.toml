@@ -27,7 +27,7 @@ build-backend = "setuptools.build_meta"
 include = ["macro_desk*"]
 
 [tool.setuptools.package-data]
-macro_desk = ["data/*.csv", "web/*.html"]
+macro_desk = ["data/*.csv", "web/*.html", "web/assets/*.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
