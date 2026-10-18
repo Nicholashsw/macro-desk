@@ -34,7 +34,11 @@ The innovation is z-scored against the preceding three years of innovations (36 
 
 **Regime.** Growth momentum is the 3-month average of industrial production YoY minus the same average six months earlier; inflation momentum is the same on core CPI. The signs place the economy in one of four quadrants: goldilocks, reflation, stagflation or disinflationary slowdown.
 
-**Data.** FRED via the public `fredgraph.csv` endpoint, so no API key is needed. All series are fetched in parallel at startup and refreshed in the background; a cold briefing touches twelve series and would otherwise take around ten seconds, which is longer than a voice turn allows. If FRED is unreachable each series falls back to the snapshot bundled in `macro_desk/data`, and every response reports `data_source: live | snapshot`.
+**Data.** FRED via the public `fredgraph.csv` endpoint, so no API key is needed. Requests never wait on the network: the cache is primed from a snapshot bundled in `macro_desk/data` and refreshed from FRED in the background, stale-while-revalidate. A cold start answers its first briefing in about 25 ms and switches to live data within seconds; if FRED is down the server keeps answering from the last good copy. Every response reports `data_source: live | snapshot`.
+
+## Alexa+ compatibility
+
+Alexa+ connects to MCP add-ons over Streamable HTTP, initializes at protocol `2025-03-26`, and expects a round trip under 500 ms. The server negotiates `2025-03-26` through `2025-11-25`, returns every result as both `structuredContent` and a JSON text block, and is covered by tests for each of those (`tests/test_server.py`, `tests/test_latency.py`). The data is public, so the endpoint needs no account linking.
 
 ## Run it
 
@@ -44,50 +48,37 @@ python -m macro_desk.server          # http://localhost:8000/mcp
 pytest
 ```
 
-Open http://localhost:8000 for the voice console: speak or type a question and it calls the server over MCP exactly as Alexa+ would, showing the JSON-RPC traffic alongside the spoken answer. Voice input needs Chrome or Edge.
-
-Environment variables:
+Open http://localhost:8000 for the voice console: speak or type a question and it calls the server over MCP, showing the JSON-RPC traffic alongside the spoken answer. Voice input needs Chrome or Edge.
 
 | Variable | Default | |
 |---|---|---|
 | `HOST`, `PORT` | `0.0.0.0`, `8000` | |
-| `MACRO_DESK_TOKEN` | unset | Require `Authorization: Bearer <token>` on `/mcp` |
 | `MACRO_DESK_OFFLINE` | unset | `1` uses the bundled snapshot only |
-| `MACRO_DESK_TTL` | `10800` | Cache lifetime in seconds |
+| `MACRO_DESK_TTL` | `10800` | Seconds before a series is refreshed from FRED |
+| `MACRO_DESK_TOKEN` | unset | Require `Authorization: Bearer <token>` on `/mcp` for private deployments |
 
-The server speaks MCP over Streamable HTTP in stateless mode and negotiates protocol `2025-11-25` and later. `tests/test_server.py` drives the full handshake and every tool with raw JSON-RPC.
+The server also serves the add-on listing assets: `/privacy`, `/terms`, `/assets/icon-*.png` and `/assets/carousel-600x900.png` (regenerate with `scripts/make_assets.py`).
 
-## Deploy on Amazon Bedrock AgentCore Runtime
+## Deploy on AWS
 
-AgentCore hosts MCP servers natively: it expects `0.0.0.0:8000/mcp`, stateless Streamable HTTP and ARM64, which is how this server runs by default.
+`scripts/deploy_ecs.sh` builds an ARM64 image, pushes it to Amazon ECR and runs it on Amazon ECS Express Mode, which puts it behind an HTTPS load balancer with a URL of the form `https://<service>.ecs.<region>.on.aws`. One task stays up at all times, so there is no cold start for Alexa+ to wait through.
 
 ```bash
-npm install -g @aws/agentcore
-
-# Cognito user pool for inbound auth: see deploy/agentcore/README.md
-agentcore create --project-name MacroDesk --no-agent
-cd MacroDesk
-agentcore add agent --name MacroDesk --language Python --protocol MCP \
-  --authorizer-type CUSTOM_JWT \
-  --discovery-url "https://cognito-idp.$REGION.amazonaws.com/$POOL_ID/.well-known/openid-configuration" \
-  --allowed-clients "$CLIENT_ID" --request-header-allowlist Authorization
-cp -r ../macro_desk app/MacroDesk/
-cp ../deploy/agentcore/main.py app/MacroDesk/main.py
-(cd app/MacroDesk && uv add "mcp>=2.2,<3" pandas httpx uvicorn)
-agentcore deploy
+AWS_REGION=us-east-1 scripts/deploy_ecs.sh           # create or update
+AWS_REGION=us-east-1 scripts/deploy_ecs.sh --delete  # tear down
 ```
 
-The endpoint is then
+## Connect to Alexa+
 
+With the [Alexa AI CLI](https://developer.amazon.com/docs/alexaplus/add-ons/set-up-your-development-environment) installed and configured:
+
+```bash
+alexa-ai new mcp --name "Macro Desk" --locale en-US --mcp-server-url "https://<host>/mcp"
+# copy descriptions, example phrases, policy URLs and media assets from alexa/listing.json
+alexa-ai deploy
 ```
-https://bedrock-agentcore.$REGION.amazonaws.com/runtimes/<url-encoded ARN>/invocations?qualifier=DEFAULT
-```
 
-A container image is also provided (`Dockerfile`, `linux/arm64`) for App Runner, ECS or anywhere else that runs containers.
-
-## Connecting to Alexa+
-
-Register the deployed `/mcp` URL as a remote MCP server in the Alexa+ developer preview. The server instructions tell the model to use `speech` verbatim and not to add numbers that are not in the result, which keeps the spoken answer grounded in the data.
+Then test in the Alexa+ web simulator from the developer console. Alexa+ reads tool definitions at deploy time, so run `alexa-ai deploy` again after changing tools.
 
 ## Layout
 
@@ -98,11 +89,14 @@ macro_desk/
   analytics.py   transforms, rolling z-scores, curve, regime (no I/O)
   speech.py      readings -> sentences for text-to-speech
   desk.py        the tool logic, independent of MCP
-  server.py      MCP server, voice console, health check, bearer auth
-  web/           browser voice console
-  data/          FRED snapshot for offline use and tests
-deploy/agentcore AgentCore Runtime entrypoint and setup notes
+  server.py      MCP server, console, listing pages, health check
+  web/           voice console, privacy and terms pages, add-on art
+  data/          FRED snapshot used to prime the cache and for tests
+alexa/           Alexa+ add-on listing values
+scripts/         ECS deploy, snapshot refresh, add-on art
 tests/
 ```
 
-Data: Federal Reserve Bank of St. Louis, FRED. Licensed under MIT.
+## License
+
+MIT
