@@ -45,6 +45,18 @@ def test_tools_listed(client):
                      "list_indicators"}
 
 
+@pytest.mark.parametrize("version", ["2025-03-26", "2025-06-18", "2025-11-25"])
+def test_negotiates_alexa_and_current_versions(version):
+    # Alexa+ initializes at 2025-03-26; the hackathon requires 2025-11-25 support.
+    with TestClient(server.build_app(warm=False)) as c:
+        init = rpc(c, "initialize", {"protocolVersion": version, "capabilities": {"roots": {"listChanged": True}},
+                                     "clientInfo": {"name": "Alexa+ MCP Client", "version": "1.0.0"}})
+        assert init["result"]["protocolVersion"] == version
+        c.headers["MCP-Protocol-Version"] = version
+        result = call(c, "get_indicator", {"indicator": "core cpi"})
+        assert result["structuredContent"]["speech"]
+
+
 @pytest.mark.parametrize("name,args", [
     ("macro_briefing", {}), ("get_indicator", {"indicator": "inflation"}),
     ("shock_score", {"indicator": "jobs report"}), ("yield_curve", {}), ("macro_regime", {}),
@@ -52,7 +64,8 @@ def test_tools_listed(client):
 def test_tools_return_speech(client, name, args):
     result = call(client, name, args)
     assert not result.get("isError")
-    payload = result.get("structuredContent") or json.loads(result["content"][0]["text"])
+    payload = result["structuredContent"]
+    assert json.loads(result["content"][0]["text"]) == payload
     assert payload["speech"].endswith(".")
     assert "nan" not in payload["speech"].lower()
 
@@ -67,6 +80,23 @@ def test_ping():
     with TestClient(server.build_app(warm=False)) as c:
         assert c.get("/ping").json() == {"status": "ok"}
         assert "Macro" in c.get("/").text
+        assert "Privacy Policy" in c.get("/privacy").text
+        assert "Terms of Use" in c.get("/terms").text
+
+
+@pytest.mark.parametrize("name", ["icon-64.png", "icon-72.png", "icon-88.png", "icon-126.png",
+                                  "icon-180.png", "icon-241.png", "carousel-600x900.png"])
+def test_addon_assets(name):
+    with TestClient(server.build_app(warm=False)) as c:
+        resp = c.get(f"/assets/{name}")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/png"
+
+
+def test_assets_do_not_escape_their_folder():
+    with TestClient(server.build_app(warm=False)) as c:
+        assert c.get("/assets/..%2Findex.html").status_code == 404
+        assert c.get("/assets/missing.png").status_code == 404
 
 
 def test_bearer_token(monkeypatch):

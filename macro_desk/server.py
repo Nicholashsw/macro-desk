@@ -12,13 +12,14 @@ from __future__ import annotations
 import hmac
 import os
 from pathlib import Path
+from typing import Any
 
 import anyio
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .catalog import INDICATORS
@@ -46,64 +47,84 @@ mcp = MCPServer(
 desk = Desk()
 
 
-async def _run(fn, *args):
+async def _run(fn, *args) -> dict[str, Any]:
     try:
         return await anyio.to_thread.run_sync(fn, *args)
     except UnknownIndicator as exc:
         raise ToolError(str(exc)) from exc
 
 
-@mcp.tool(annotations=READ_ONLY)
-async def macro_briefing() -> dict:
+@mcp.tool(annotations=READ_ONLY, structured_output=True)
+async def macro_briefing() -> dict[str, Any]:
     """A 30-second spoken rundown of the US economy: the releases that moved the most
     against their own history, the shape of the yield curve, and the growth/inflation
     regime. Use for "brief me", "what's happening in the economy", "morning update"."""
     return await _run(desk.briefing)
 
 
-@mcp.tool(annotations=READ_ONLY)
-async def get_indicator(indicator: str) -> dict:
+@mcp.tool(annotations=READ_ONLY, structured_output=True)
+async def get_indicator(indicator: str) -> dict[str, Any]:
     """Latest reading for one US indicator in plain words, e.g. "inflation", "core PCE",
     "jobs report", "unemployment", "retail sales", "jobless claims", "GDP", "fed funds",
     "ten year yield", "breakevens". Mentions the shock score only when the move was unusual."""
     return await _run(desk.indicator, indicator)
 
 
-@mcp.tool(annotations=READ_ONLY)
-async def shock_score(indicator: str) -> dict:
+@mcp.tool(annotations=READ_ONLY, structured_output=True)
+async def shock_score(indicator: str) -> dict[str, Any]:
     """How unusual the latest move was: z-score against the prior three years, its
     percentile in history, and the last time a move this large happened. Use for
     "is that a lot", "how big a surprise was the CPI print"."""
     return await _run(desk.shock, indicator)
 
 
-@mcp.tool(annotations=READ_ONLY)
-async def yield_curve() -> dict:
+@mcp.tool(annotations=READ_ONLY, structured_output=True)
+async def yield_curve() -> dict[str, Any]:
     """US Treasury curve: 3-month, 2-year and 10-year yields, 10y-3m and 10y-2y spreads,
     whether the curve is inverted and since when, and the 10-year's one-month move."""
     return await _run(desk.curve)
 
 
-@mcp.tool(annotations=READ_ONLY)
-async def macro_regime() -> dict:
+@mcp.tool(annotations=READ_ONLY, structured_output=True)
+async def macro_regime() -> dict[str, Any]:
     """Which growth/inflation quadrant the economy is in (goldilocks, reflation,
     stagflation, disinflationary slowdown), how long it has been there, and what came before."""
     return await _run(desk.regime)
 
 
-@mcp.tool(annotations=READ_ONLY)
-async def list_indicators() -> dict:
+@mcp.tool(annotations=READ_ONLY, structured_output=True)
+async def list_indicators() -> dict[str, Any]:
     """Everything Macro Desk can report on, with the phrases that map to each."""
     return await _run(desk.indicators)
 
 
-CONSOLE = Path(__file__).parent / "web" / "index.html"
+WEB = Path(__file__).parent / "web"
 
 
 @mcp.custom_route("/", methods=["GET"])
 async def console(_: Request) -> HTMLResponse:
     """Browser voice console that talks to this server over MCP."""
-    return HTMLResponse(CONSOLE.read_text())
+    return HTMLResponse((WEB / "index.html").read_text())
+
+
+@mcp.custom_route("/privacy", methods=["GET"])
+async def privacy(_: Request) -> HTMLResponse:
+    return HTMLResponse((WEB / "privacy.html").read_text())
+
+
+@mcp.custom_route("/terms", methods=["GET"])
+async def terms(_: Request) -> HTMLResponse:
+    return HTMLResponse((WEB / "terms.html").read_text())
+
+
+@mcp.custom_route("/assets/{name}", methods=["GET"])
+async def asset(request: Request) -> Response:
+    """Add-on icons and carousel art, served from here so the add-on needs no separate host."""
+    name = request.path_params["name"]
+    path = (WEB / "assets" / name).resolve()
+    if path.parent != (WEB / "assets").resolve() or not path.is_file():
+        return PlainTextResponse("not found", status_code=404)
+    return FileResponse(path, headers={"Cache-Control": "public, max-age=86400"})
 
 
 @mcp.custom_route("/ping", methods=["GET"])
@@ -112,7 +133,11 @@ async def ping(_: Request) -> JSONResponse:
 
 
 class BearerAuth:
-    """Optional static bearer token on /mcp. Health checks stay open."""
+    """Optional static bearer token on /mcp for private deployments. Everything else stays open.
+
+    Leave MACRO_DESK_TOKEN unset for Alexa+: the data is public and Alexa+ only
+    authenticates to private servers through its own OAuth flow.
+    """
 
     def __init__(self, app: ASGIApp, token: str):
         self.app = app
