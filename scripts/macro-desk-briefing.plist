@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekday morning briefing on Sonos, 07:30 local time.
+
+  Replace REPO with the absolute path to this checkout, then:
+    cp scripts/macro-desk-briefing.plist ~/Library/LaunchAgents/dev.macrodesk.briefing.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.macrodesk.briefing.plist
+  Remove with:
+    launchctl bootout gui/$(id -u)/dev.macrodesk.briefing
+
+  launchd runs a missed job when the Mac next wakes, so a sleeping MacBook
+  briefs you late rather than on time.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.macrodesk.briefing</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>REPO/.venv/bin/macro-desk-sonos</string>
+    <string>brief</string>
+    <string>--yes</string>
+    <string>--skip-if-playing</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>MACRO_DESK_SONOS_NAME</key>
+    <string>Bedroom</string>
+    <key>MACRO_DESK_SONOS_VOLUME</key>
+    <string>25</string>
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>7</integer><key>Minute</key><integer>30</integer></dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/macro-desk-briefing.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/macro-desk-briefing.log</string>
+</dict>
+</plist>

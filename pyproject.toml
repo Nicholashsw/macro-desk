@@ -15,9 +15,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+sonos = ["soco>=0.30"]
 
 [project.scripts]
 macro-desk = "macro_desk.server:main"
+macro-desk-sonos = "macro_desk.sonos_cli:main"
 
 [build-system]
 requires = ["setuptools>=69"]
