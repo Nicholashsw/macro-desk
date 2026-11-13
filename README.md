@@ -59,6 +59,31 @@ Open http://localhost:8000 for the voice console: speak or type a question and i
 
 The server also serves the add-on listing assets: `/privacy`, `/terms`, `/assets/icon-*.png` and `/assets/carousel-600x900.png` (regenerate with `scripts/make_assets.py`).
 
+## Play it on Sonos
+
+The same briefing can be spoken on a Sonos speaker from a Mac on the same Wi-Fi. Speech is rendered locally with macOS `say`, served from the Mac on one port, and played through [SoCo](https://github.com/SoCo/SoCo) over the speaker's local UPnP interface. No Sonos account or cloud API is involved, and whatever was playing resumes afterwards at its original volume.
+
+```bash
+pip install -e ".[sonos]"
+macro-desk-sonos discover                  # list speakers, plays nothing
+macro-desk-sonos say "Testing, one two"    # short test clip
+macro-desk-sonos brief                     # the latest macro briefing
+macro-desk-sonos brief --dry-run           # render the audio only
+```
+
+Playback asks before it starts; `--yes` skips the prompt. The first run triggers a macOS firewall prompt for Python: allow it, or the speaker cannot fetch the clip.
+
+| Variable | Default | |
+|---|---|---|
+| `MACRO_DESK_SONOS_NAME` | unset | Room name, needed when there is more than one speaker |
+| `MACRO_DESK_SONOS_IP` | unset | Skip discovery, for networks that block multicast |
+| `MACRO_DESK_SONOS_VOLUME` | current | Volume for the clip, restored afterwards |
+| `MACRO_DESK_CLIP_PORT` | `8765` | Port the clip is served on |
+| `MACRO_DESK_VOICE`, `MACRO_DESK_RATE` | system | `say` voice and words per minute |
+| `MACRO_DESK_AUDIO_DIR` | `~/.cache/macro-desk` | Rendered clips, last five kept |
+
+For a weekday morning briefing, `scripts/macro-desk-briefing.plist` is a launchd template that runs `brief --yes --skip-if-playing` at 07:30. US releases land at 08:30 Eastern, which is the previous evening in Singapore, so a 07:30 briefing there covers the night's data. The Sonos path is local only and is not part of the server image.
+
 ## Deploy on AWS
 
 `scripts/deploy_ecs.sh` builds an ARM64 image, pushes it to Amazon ECR and runs it on Amazon ECS Express Mode, which puts it behind an HTTPS load balancer with a URL of the form `https://<service>.ecs.<region>.on.aws`. One task stays up at all times, so there is no cold start for Alexa+ to wait through.
@@ -90,10 +115,14 @@ macro_desk/
   speech.py      readings -> sentences for text-to-speech
   desk.py        the tool logic, independent of MCP
   server.py      MCP server, console, listing pages, health check
+  tts.py         macOS speech rendering for local playback
+  clipserver.py  one-file HTTP server the speaker fetches from
+  sonos.py       speaker discovery and playback with resume
+  sonos_cli.py   macro-desk-sonos command
   web/           voice console, privacy and terms pages, add-on art
   data/          FRED snapshot used to prime the cache and for tests
 alexa/           Alexa+ add-on listing values
-scripts/         ECS deploy, snapshot refresh, add-on art
+scripts/         ECS deploy, snapshot refresh, add-on art, launchd briefing
 tests/
 ```
 
